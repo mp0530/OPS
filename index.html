@@ -27,10 +27,6 @@
 <body>
     <div id="map"></div>
     <script>
-        // var data = $.csv.toObjects('texas.csv');
-        // $.when(data).done(function() {
-        //   console.log(data);
-        // })
         $(document).ready(function() {
             var tx_counties = "https://raw.githubusercontent.com/TNRIS/tx.geojson/master/counties/tx_counties.geojson";
             var us_boarder = "https://raw.githubusercontent.com/mp0530/OPS/ff2f3670d923b9a49763a4ba19c5fb23de617ff4/test.geojson"
@@ -86,24 +82,24 @@
                 });
                 // console.log(table);
 
-                function procces_counties(counties) {
-                    var len = table["Anderson"].length;
-                    L.geoJSON(counties,{
-                        style: function(feature) {
-                            return {
-                                fillColor: county_color(table[feature.properties.COUNTY.slice(0,-7)][len-1]),
-                                weight: 2,
-                                opacity: 1,
-                                color: 'white',
-                                dashArray: '3',
-                                fillOpacity: 0.7
-                            };
-                        },
-                        onEachFeature: function (feature, layer) {
-                            layer.bindTooltip(feature.properties.COUNTY + ": " + table[feature.properties.COUNTY.slice(0,-7)][len-1]);
-                        }
-                    }).addTo(map);
-                };
+            function procces_counties(counties) {
+                var len = table["Anderson"].length;
+                L.geoJSON(counties,{
+                    style: function(feature) {
+                        return {
+                            fillColor: county_color(table[feature.properties.COUNTY.slice(0,-7)][len-1]),
+                            weight: 2,
+                            opacity: 1,
+                            color: 'white',
+                            dashArray: '3',
+                            fillOpacity: 0.7
+                        };
+                    },
+                    onEachFeature: function (feature, layer) {
+                        layer.bindTooltip(feature.properties.COUNTY + ": " + table[feature.properties.COUNTY.slice(0,-7)][len-1]);
+                    }
+                }).addTo(map);
+            };
             };
             // console.log(table);
         });
