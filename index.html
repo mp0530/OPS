@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>A simple map</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <script src="jquery.csv.js"></script>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <script>
+        // var data = $.csv.toObjects('texas.csv');
+        // $.when(data).done(function() {
+        //   console.log(data);
+        // })
+        $(document).ready(function() {
+            var tx_counties = "https://raw.githubusercontent.com/TNRIS/tx.geojson/master/counties/tx_counties.geojson";
+            var us_boarder = "https://raw.githubusercontent.com/mp0530/OPS/ff2f3670d923b9a49763a4ba19c5fb23de617ff4/test.geojson"
+            var map = L.map('map')
+                .setView([30.266, -97.73], 6);
+
+            var basemap = L.tileLayer('http://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="http://cartodb.com/attributions">CartoDB</a>',
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(map);
+            L.marker([30.467589, -97.680010]).bindPopup("My Home!").addTo(map);
+
+            // Transferring CSV to Object!
+            console.log('Transffering CSV to Object...');
+            var table = {};
+            var data = $.ajax({
+                type: "GET",
+                url: "texas.csv",
+                dataType: "text",
+                success: function(data) {
+                    processData(data);
+                    geotolayer();}
+                });
+            function processData(data) {
+                var lines = data.split(/\r\n|\n/);
+                for (var i = 0; i < lines.length; i++) {
+                    var arr = lines[i].split(',');
+                    table[arr[0]] = arr.slice(1,);
+                };
+            };
+            function county_color(n) {
+                return n < 10 ? "#f7fcf5" :
+                       n < 20 ? "#e5f5e0" :
+                       n < 50 ? "#c7e9c0" :
+                       n < 100 ? "#a1d99b":
+                       n < 200 ? "#74c476":
+                       n < 500 ? "#41ab5d":
+                       n < 1000 ? "#238b45":
+                       n < 5000 ? "#006d2c":
+                                  "#00441b";
+            };
+            // Append Geojson Layer
+            function geotolayer() {
+                console.log('Geojson to Layer...');
+                var counties = $.ajax({
+                    url: tx_counties,
+                    dataType: "json",
+                    success: function(counties) {procces_counties(counties);},
+                    error: function(xhr) {
+                        alert("Bad")
+                    }
+                });
+                // console.log(table);
+
+                function procces_counties(counties) {
+                    var len = table["Anderson"].length;
+                    L.geoJSON(counties,{
+                        style: function(feature) {
+                            return {
+                                fillColor: county_color(table[feature.properties.COUNTY.slice(0,-7)][len-1]),
+                                weight: 2,
+                                opacity: 1,
+                                color: 'white',
+                                dashArray: '3',
+                                fillOpacity: 0.7
+                            };
+                        },
+                        onEachFeature: function (feature, layer) {
+                            layer.bindTooltip(feature.properties.COUNTY + ": " + table[feature.properties.COUNTY.slice(0,-7)][len-1]);
+                        }
+                    }).addTo(map);
+                };
+            };
+            // console.log(table);
+        });
+
+    </script>
+</body>
+
+</html>
