@@ -6,31 +6,74 @@
     <title>A simple map</title>
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-    <script src="jquery.csv.js"></script>
+    <!-- <script src="https://code.jquery.com/jquery-1.12.4.js"></script> -->
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <script src='nouislider.js'></script>
+    
+    <link rel="stylesheet" href="nouislider.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+
     <style>
-        body {
-            margin: 0;
-            padding: 0;
+        body {margin: 0; padding: 0;}
+/*        #button {position: absolute; top: 0; left: 0; margin: 140px 0px 0px 130px; z-index: 1000}*/
+        #map {width: 100%;}
+/*        #date {position: absolute; top: 0; left: 0; margin: 240px 0px 0px 130px; z-index: 1000}*/
+        #overlay {
+            position: absolute;
+            z-index: 1000;
+            background: rgba(237, 215, 192,0.5);
+            padding: 10px;
+            bottom: 0;
+            left: 0;
+            margin: 10px;
+            border-radius: 10px;
+            box-shadow: 1px 1px 1px black;
+            min-height: 200px;
+            min-width: 400px;
         }
 
-        #map {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 100%;
-        }
     </style>
 </head>
 
 <body>
-    <div id="map"></div>
+    <div id ="map"></div>
+    <div id = "overlay">
+        <h2> Date Toggle </h2>
+        <div id = "button">
+            <button id = 'preveous_day'> Day-1 </button>
+            <button id = 'next_day'> Day+1 </button>
+        </div>
+        <div id = "date">
+            <p>Date: <input type="text" id="datepicker"></p>
+        </div>
+        <div id = "slider"></div>
+    </div>
+    
     <script>
         $(document).ready(function() {
+            var today = new Date();
+            var first_date = new Date("03/04/2020");
+            var len = Math.floor((today.getTime() - first_date.getTime())/(1000 * 3600 * 24));
+            console.log(len);
+            var dd = today.getDate();
+            var mm = today.getMonth()+1;
+            console.log(dd, mm);
+            $('#map').height(window.innerHeight);
+            $('#datepicker').datepicker().on("change", function(e) {
+                // console.log(Math.floor((e.timeStamp - first_date.getTime())/(1000 * 3600 * 24)));
+                var dd = e.target.value.slice(3, 5);
+                var mm = e.target.value.slice(0, 2);
+                console.log("month:", mm, "date:", dd);
+                selected_date = new Date(mm + "/" + dd + "/2020");
+                console.log(selected_date);
+                len = Math.floor((selected_date.getTime() - first_date.getTime())/(1000 * 3600 * 24));
+                texas_county.setStyle(function(feature) {return texas_style(feature)});
+            });
             var tx_counties = "https://raw.githubusercontent.com/TNRIS/tx.geojson/master/counties/tx_counties.geojson";
             var us_boarder = "https://raw.githubusercontent.com/mp0530/OPS/ff2f3670d923b9a49763a4ba19c5fb23de617ff4/test.geojson"
-            var map = L.map('map')
+            var map = L.map('map', {zoomControl: false})
                 .setView([30.266, -97.73], 6);
 
             var basemap = L.tileLayer('http://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png', {
@@ -40,9 +83,13 @@
             }).addTo(map);
             L.marker([30.467589, -97.680010]).bindPopup("My Home!").addTo(map);
 
-            // Transferring CSV to Object!
+            
+///////////////////////////////// Transferring CSV to Object!//////////////////////////////////////////
+            
             console.log('Transffering CSV to Object...');
             var table = {};
+            
+            // Load data
             var data = $.ajax({
                 type: "GET",
                 url: "texas.csv",
@@ -51,60 +98,111 @@
                     processData(data);
                     geotolayer();}
                 });
+            
+            // Modify data
             function processData(data) {
                 var lines = data.split(/\r\n|\n/);
                 for (var i = 0; i < lines.length; i++) {
                     var arr = lines[i].split(',');
                     table[arr[0]] = arr.slice(1,);
                 };
+                len = table["Anderson"].length;
+                // console.log(len);
             };
-            function county_color(n) {
-                return n < 10 ? "#f7fcf5" :
-                       n < 20 ? "#e5f5e0" :
-                       n < 50 ? "#c7e9c0" :
-                       n < 100 ? "#a1d99b":
-                       n < 200 ? "#74c476":
-                       n < 500 ? "#41ab5d":
-                       n < 1000 ? "#238b45":
-                       n < 5000 ? "#006d2c":
-                                  "#00441b";
-            };
-            // Append Geojson Layer
+            
+            // JSON call create Geojson Layer after data successfully modified
             function geotolayer() {
                 console.log('Geojson to Layer...');
                 var counties = $.ajax({
                     url: tx_counties,
                     dataType: "json",
                     success: function(counties) {procces_counties(counties);},
-                    error: function(xhr) {
-                        alert("Bad")
-                    }
+                    error: function(xhr) {alert("Bad")}
                 });
-                // console.log(table);
-
+            };
+            
+            // Create Geojson, append to map
+            var texas_county
             function procces_counties(counties) {
-                var len = table["Anderson"].length;
-                L.geoJSON(counties,{
-                    style: function(feature) {
-                        return {
-                            fillColor: county_color(table[feature.properties.COUNTY.slice(0,-7)][len-1]),
-                            weight: 2,
-                            opacity: 1,
-                            color: 'white',
-                            dashArray: '3',
-                            fillOpacity: 0.7
-                        };
-                    },
+                texas_county = L.geoJSON(counties,{
+                    style: texas_style,
                     onEachFeature: function (feature, layer) {
                         layer.bindTooltip(feature.properties.COUNTY + ": " + table[feature.properties.COUNTY.slice(0,-7)][len-1]);
                     }
                 }).addTo(map);
             };
+
+////////////////////////////////// Update style when date change ///////////////////////////////////////
+            
+            // Style when date modified
+            function texas_style(feature) {
+                return {
+                    fillColor: county_color(table[feature.properties.COUNTY.slice(0,-7)][len]),
+                    weight: 2,
+                    opacity: 1,
+                    color: 'white',
+                    dashArray: '3',
+                    fillOpacity: 0.7
+                };
             };
-            // console.log(table);
-        });
+            
+            // Pick a color
+            function county_color(n) {
+                return  n != parseInt(n, 10) ? "#FDFEFE"  : 
+                        n < 10 ? "#f7fcf5" :
+                        n < 20 ? "#e5f5e0" :
+                        n < 50 ? "#c7e9c0" :
+                        n < 100 ? "#a1d99b":
+                        n < 200 ? "#74c476":
+                        n < 500 ? "#41ab5d":
+                        n < 1000 ? "#238b45":
+                        n < 5000 ? "#006d2c":
+                        "#00441b"
+            };
+            
+////////////////////////////////////////////////// button /////////////////////////////////////////////////
+            
+            $(document).on('click', '#preveous_day', function() {
+                len -= 1;
+                console.log(len);
+                texas_county.setStyle(function(feature) {return texas_style(feature)});
+            });
+            $(document).on('click', '#next_day', function() {
+                len += 1;
+                console.log(len);
+                texas_county.setStyle(function(feature) {return texas_style(feature)});
+            });
+            
+////////////////////////////////////////////////// slider /////////////////////////////////////////////////
+            
+            var slider = document.getElementById('slider');
+            function timestamp(str) {return new Date(str).getTime();}
+            
+            noUiSlider.create(slider, {
+                start: today,
+                step: 24 * 60 * 60 * 1000,
+                pips: {mode: "values", values: [first_date.getTime(), today.getTime()], density: 24 * 60 * 60 * 1000},
+                range: {'min': timestamp("2020"), 'max': timestamp("2021")},
+            }).on("slide", function(e) {
+                len = Math.floor((e - first_date)/(1000 * 3600 * 24));
+                texas_county.setStyle(function(feature) {return texas_style(feature)});
+                console.log(len);
+            })
+            slider.noUiSlider.on("change", function(e) {
+                if (e < first_date.getTime()) {
+                    slider.noUiSlider.set(first_date.getTime());
+                } else if (e > today.getTime()) {
+                    slider.noUiSlider.set(today.getTime());
+                };
+            });
+            
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+            
+        }); // Document border
+
 
     </script>
+
 </body>
 
 </html>
