@@ -6,7 +6,6 @@
     <title>A simple map</title>
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-    <!-- <script src="https://code.jquery.com/jquery-1.12.4.js"></script> -->
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
     <script src='nouislider.js'></script>
@@ -46,31 +45,16 @@
             <button id = 'next_day'> Day+1 </button>
         </div>
         <div id = "date">
-            <p>Date: <input type="text" id="datepicker"></p>
+            <p>Date: <input type="text" id="datebox"></p>
         </div>
         <div id = "slider"></div>
     </div>
     
     <script>
         $(document).ready(function() {
-            var today = new Date();
-            var first_date = new Date("03/04/2020");
-            var len = Math.floor((today.getTime() - first_date.getTime())/(1000 * 3600 * 24));
-            console.log(len);
-            var dd = today.getDate();
-            var mm = today.getMonth()+1;
-            console.log(dd, mm);
+            
             $('#map').height(window.innerHeight);
-            $('#datepicker').datepicker().on("change", function(e) {
-                // console.log(Math.floor((e.timeStamp - first_date.getTime())/(1000 * 3600 * 24)));
-                var dd = e.target.value.slice(3, 5);
-                var mm = e.target.value.slice(0, 2);
-                console.log("month:", mm, "date:", dd);
-                selected_date = new Date(mm + "/" + dd + "/2020");
-                console.log(selected_date);
-                len = Math.floor((selected_date.getTime() - first_date.getTime())/(1000 * 3600 * 24));
-                texas_county.setStyle(function(feature) {return texas_style(feature)});
-            });
+                        
             var tx_counties = "https://raw.githubusercontent.com/TNRIS/tx.geojson/master/counties/tx_counties.geojson";
             var us_boarder = "https://raw.githubusercontent.com/mp0530/OPS/ff2f3670d923b9a49763a4ba19c5fb23de617ff4/test.geojson"
             var map = L.map('map', {zoomControl: false})
@@ -131,13 +115,23 @@
                     }
                 }).addTo(map);
             };
-
+            
+/////////////////////////////////////////// Update Date ////////////////////////////////////////////////
+            
+            function date_changed(e) { 
+                // (e --> timestamp)
+                e = new Date(e);
+                console.log(e);
+                $("#datebox").val((e.getMonth()+1).toString() + "/" + (e.getDate()).toString() + "/" + (e.getFullYear()).toString());
+                texas_county.setStyle(function(feature) {return texas_style(feature, Math.floor((e - first_date)/(1000 * 3600 * 24)))});
+            }
+            
 ////////////////////////////////// Update style when date change ///////////////////////////////////////
             
             // Style when date modified
-            function texas_style(feature) {
+            function texas_style(feature, index) {
                 return {
-                    fillColor: county_color(table[feature.properties.COUNTY.slice(0,-7)][len]),
+                    fillColor: county_color(table[feature.properties.COUNTY.slice(0,-7)][index]),
                     weight: 2,
                     opacity: 1,
                     color: 'white',
@@ -159,18 +153,32 @@
                         n < 5000 ? "#006d2c":
                         "#00441b"
             };
+//////////////////////////////////// Update tooltip when date change //////////////////////////////////////
             
+/////////////////////////////////////////////// date-picker ///////////////////////////////////////////////
+            
+            var today = new Date();
+            var first_date = new Date("03/04/2020");
+            document.getElementById('datebox').value = (today.getMonth()+1).toString() + "/" + today.getDate().toString() + "/" + today.getFullYear().toString();
+
+            $('#datebox').datepicker().on("change", function(t) {
+                t = new Date(t.target.value);
+                console.log(t);
+                slider.noUiSlider.set(t.getTime());
+                texas_county.setStyle(function(feature) {return texas_style(feature, Math.floor((t.getTime() - first_date)/(1000 * 3600 * 24)))});
+            });
+
 ////////////////////////////////////////////////// button /////////////////////////////////////////////////
             
             $(document).on('click', '#preveous_day', function() {
-                len -= 1;
-                console.log(len);
-                texas_county.setStyle(function(feature) {return texas_style(feature)});
+                box_date = new Date(document.getElementById('datebox').value);
+                slider.noUiSlider.set(box_date.getTime() - 86400000);
+                return date_changed(box_date.getTime() - 86400000);
             });
             $(document).on('click', '#next_day', function() {
-                len += 1;
-                console.log(len);
-                texas_county.setStyle(function(feature) {return texas_style(feature)});
+                box_date = new Date(document.getElementById('datebox').value);
+                slider.noUiSlider.set(box_date.getTime() + 86400000);
+                return date_changed(box_date.getTime() + 86400000);
             });
             
 ////////////////////////////////////////////////// slider /////////////////////////////////////////////////
@@ -184,10 +192,9 @@
                 pips: {mode: "values", values: [first_date.getTime(), today.getTime()], density: 24 * 60 * 60 * 1000},
                 range: {'min': timestamp("2020"), 'max': timestamp("2021")},
             }).on("slide", function(e) {
-                len = Math.floor((e - first_date)/(1000 * 3600 * 24));
-                texas_county.setStyle(function(feature) {return texas_style(feature)});
-                console.log(len);
-            })
+                return date_changed(parseInt(e[0]));
+
+            });
             slider.noUiSlider.on("change", function(e) {
                 if (e < first_date.getTime()) {
                     slider.noUiSlider.set(first_date.getTime());
