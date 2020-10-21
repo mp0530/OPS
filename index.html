@@ -81,7 +81,7 @@
             ///////////////////////// Load sick data ///////////////////////////////
             $.ajax({
                 type: "GET",
-                url: "texas.csv",
+                url: "texas_cases.csv",
                 dataType: "text",
                 success: function(data) {
                     tx_table = tx_processData(data);
