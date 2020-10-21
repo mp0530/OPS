@@ -32,6 +32,8 @@
             min-height: 200px;
             min-width: 400px;
         }
+        #remove {position: absolute; top: 10px; right: 10px;}
+
 
     </style>
 </head>
@@ -39,10 +41,14 @@
 <body>
     <div id ="map"></div>
     <div id = "overlay">
-        <h2> Date Toggle </h2>
+        <h3 id = "title"> Texas Covid-19 Cases by County </h3>
         <div id = "button">
             <button id = 'preveous_day'> Day-1 </button>
             <button id = 'next_day'> Day+1 </button>
+            <div id = 'remove'>
+                <p><button id = 'sick'> Cases </button></p>
+                <p><button id = 'fatality'> Fatalities</button></p>
+            </div>
         </div>
         <div id = "date">
             <p>Date: <input type="text" id="datebox"></p>
@@ -54,94 +60,131 @@
         $(document).ready(function() {
             
             $('#map').height(window.innerHeight);
-                        
-            var tx_counties = "https://raw.githubusercontent.com/TNRIS/tx.geojson/master/counties/tx_counties.geojson";
-            var us_boarder = "https://raw.githubusercontent.com/mp0530/OPS/ff2f3670d923b9a49763a4ba19c5fb23de617ff4/test.geojson"
+//            var us_boarder = "https://raw.githubusercontent.com/mp0530/OPS/ff2f3670d923b9a49763a4ba19c5fb23de617ff4/test.geojson"
             var map = L.map('map', {zoomControl: false})
-                .setView([30.266, -97.73], 6);
+                .setView([30.266, -97.73], 5);
 
             var basemap = L.tileLayer('http://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="http://cartodb.com/attributions">CartoDB</a>',
                 subdomains: 'abcd',
                 maxZoom: 19
             }).addTo(map);
-            L.marker([30.467589, -97.680010]).bindPopup("My Home!").addTo(map);
+//            L.marker([30.467589, -97.680010]).bindPopup("My Home!").addTo(map);
 
             
 ///////////////////////////////// Transferring CSV to Object!//////////////////////////////////////////
             
             console.log('Transffering CSV to Object...');
-            var table = {};
+            var tx_table;
+            var tx_table_fatality;
             
-            // Load data
-            var data = $.ajax({
+            ///////////////////////// Load sick data ///////////////////////////////
+            $.ajax({
                 type: "GET",
                 url: "texas.csv",
                 dataType: "text",
                 success: function(data) {
-                    processData(data);
-                    geotolayer();}
+                    tx_table = tx_processData(data);
+                    geotolayer(tx_table);}
                 });
-            
             // Modify data
-            function processData(data) {
-                var lines = data.split(/\r\n|\n/);
+            function tx_processData(data) {
+                let table = {}
+                let lines = data.split(/\r\n|\n/);
                 for (var i = 0; i < lines.length; i++) {
                     var arr = lines[i].split(',');
                     table[arr[0]] = arr.slice(1,);
                 };
-                len = table["Anderson"].length;
-                // console.log(len);
-            };
+                return table
+            }; 
             
             // JSON call create Geojson Layer after data successfully modified
-            function geotolayer() {
+            function geotolayer(table) {
                 console.log('Geojson to Layer...');
-                var counties = $.ajax({
-                    url: tx_counties,
+                tx_counties = $.ajax({
+                    url: "https://raw.githubusercontent.com/TNRIS/tx.geojson/master/counties/tx_counties.geojson",
                     dataType: "json",
-                    success: function(counties) {procces_counties(counties);},
+                    success: function(tx_counties) {procces_counties(tx_counties);},
                     error: function(xhr) {alert("Bad")}
                 });
             };
             
             // Create Geojson, append to map
-            var texas_county
+            var tx_cases_layer
             function procces_counties(counties) {
-                texas_county = L.geoJSON(counties,{
-                    style: texas_style,
-                    onEachFeature: function (feature, layer) {
-                        layer.bindTooltip(feature.properties.COUNTY + ": " + table[feature.properties.COUNTY.slice(0,-7)][len-1]);
+                tx_cases_layer = L.geoJSON(counties,{
+                    style: function(feature) {
+                        return texas_style(feature, Math.floor((today.getTime() - first_date.getTime())/(1000 * 3600 * 24)));
+                    },
+                    onEachFeature: function(feature, layer) {
+                        layer.bindTooltip(feature.properties.COUNTY + ": " + tx_table[feature.properties.COUNTY.slice(0,-7)][Math.floor((today.getTime() - first_date.getTime())/(1000 * 3600 * 24))])
                     }
                 }).addTo(map);
             };
+            $.ajax({
+                type: "GET",
+                url: "texas_fatality.csv",
+                dataType: "text",
+                success: function(data) {
+                    console.log("fatality success");
+                    tx_table_fatality = tx_processData(data);
+                    $.ajax({
+                        url: "https://raw.githubusercontent.com/TNRIS/tx.geojson/master/counties/tx_counties.geojson",
+                        dataType: "json",
+                        success: function(tx_counties) {
+                            tx_fatalities_layer = L.geoJSON(tx_counties, {
+                                style: texas_style,
+                                onEachFeature: function(feature, layer) {
+                                    layer.bindTooltip(feature.properties.COUNTY + ": " + tx_table_fatality[(feature.properties.COUNTY.slice(0,-7)).toUpperCase()][Math.floor((today.getTime() - first_date.getTime())/(1000 * 3600 * 24))])
+                                }
+                            })
+                        }
+                    })
+                }
+            });
             
+
 /////////////////////////////////////////// Update Date ////////////////////////////////////////////////
             
             function date_changed(e) { 
                 // (e --> timestamp)
                 e = new Date(e);
-                console.log(e);
+//                console.log(e);
                 $("#datebox").val((e.getMonth()+1).toString() + "/" + (e.getDate()).toString() + "/" + (e.getFullYear()).toString());
-                texas_county.setStyle(function(feature) {return texas_style(feature, Math.floor((e - first_date)/(1000 * 3600 * 24)))});
+                if (cases) {
+                    tx_cases_layer.setStyle(function(feature) {return texas_style(feature, Math.floor((e - first_date.getTime())/(1000 * 3600 * 24)))});
+                } else {
+                    tx_fatalities_layer.setStyle(function(feature) {return texas_style(feature, Math.floor((e - first_date.getTime())/(1000 * 3600 * 24)))});
+                }
             }
             
 ////////////////////////////////// Update style when date change ///////////////////////////////////////
             
             // Style when date modified
             function texas_style(feature, index) {
-                return {
-                    fillColor: county_color(table[feature.properties.COUNTY.slice(0,-7)][index]),
-                    weight: 2,
-                    opacity: 1,
-                    color: 'white',
-                    dashArray: '3',
-                    fillOpacity: 0.7
-                };
+                if (cases) {
+                    return {
+                        fillColor: cases_color(tx_table[feature.properties.COUNTY.slice(0,-7)][index]),
+                        weight: 2,
+                        opacity: 1,
+                        color: 'white',
+                        dashArray: '3',
+                        fillOpacity: 0.7
+                    };                    
+                } else {
+                    return {
+                        fillColor: fatalities_color(tx_table_fatality[(feature.properties.COUNTY.slice(0,-7)).toUpperCase()][index]),
+                        weight: 2,
+                        opacity: 1,
+                        color: 'white',
+                        dashArray: '3',
+                        fillOpacity: 0.7
+                    }
+                }
             };
             
-            // Pick a color
-            function county_color(n) {
+            // Cases color
+            function cases_color(n) {
                 return  n != parseInt(n, 10) ? "#FDFEFE"  : 
                         n < 10 ? "#f7fcf5" :
                         n < 20 ? "#e5f5e0" :
@@ -153,11 +196,37 @@
                         n < 5000 ? "#006d2c":
                         "#00441b"
             };
+            
+            // Fatalities color
+            function fatalities_color(n) {
+                return  n != parseInt(n, 10) ? "#FDFEFE":
+                        n < 5 ? "#fff5f0" :
+                        n < 10 ? "#fee0d2":
+                        n < 20 ? "#fcbba1":
+                        n < 50 ? "#fc9272":
+                        n < 100? "#fb6a4a":
+                        n < 250? "#ef3b2c":
+                        n < 500? "#cb181d":
+                        n < 1000?"#99000d":
+                        "#67000d"
+            }
 //////////////////////////////////// Update tooltip when date change //////////////////////////////////////
+            
+            function texas_tooltip(e) {
+                if (cases) {
+                    tx_cases_layer.eachLayer(function(feature) {
+                        feature.setTooltipContent(feature.feature.properties.COUNTY + ": " + tx_table[feature.feature.properties.COUNTY.slice(0,-7)][Math.floor((e - first_date)/(1000 * 3600 * 24))])
+                    })    
+                } else {
+                    tx_fatalities_layer.eachLayer(function(feature) {
+                        feature.setTooltipContent(feature.feature.properties.COUNTY + ": " + tx_table_fatality[(feature.feature.properties.COUNTY.slice(0,-7)).toUpperCase()][Math.floor((e - first_date)/(1000 * 3600 * 24))])
+                    })
+                }
+            };
             
 /////////////////////////////////////////////// date-picker ///////////////////////////////////////////////
             
-            var today = new Date();
+            var today = new Date("10/15/2020");
             var first_date = new Date("03/04/2020");
             document.getElementById('datebox').value = (today.getMonth()+1).toString() + "/" + today.getDate().toString() + "/" + today.getFullYear().toString();
 
@@ -165,22 +234,59 @@
                 t = new Date(t.target.value);
                 console.log(t);
                 slider.noUiSlider.set(t.getTime());
-                texas_county.setStyle(function(feature) {return texas_style(feature, Math.floor((t.getTime() - first_date)/(1000 * 3600 * 24)))});
+                if (cases) {
+                    tx_cases_layer.setStyle(function(feature) {return texas_style(feature, Math.floor((t.getTime() - first_date)/(1000 * 3600 * 24)))});
+                } else {
+                    tx_fatalities_layer.setStyle(function(feature) {return texas_style(feature, Math.floor((t.getTime() - first_date)/(1000 * 3600 * 24)))})
+                };
+                texas_tooltip(t.getTime());
             });
 
 ////////////////////////////////////////////////// button /////////////////////////////////////////////////
             
             $(document).on('click', '#preveous_day', function() {
                 box_date = new Date(document.getElementById('datebox').value);
-                slider.noUiSlider.set(box_date.getTime() - 86400000);
-                return date_changed(box_date.getTime() - 86400000);
+                box_date.setDate(box_date.getDate()-1);
+                slider.noUiSlider.set(box_date.getTime());
+                texas_tooltip(box_date.getTime());
+                return date_changed(box_date.getTime());
             });
             $(document).on('click', '#next_day', function() {
                 box_date = new Date(document.getElementById('datebox').value);
-                slider.noUiSlider.set(box_date.getTime() + 86400000);
-                return date_changed(box_date.getTime() + 86400000);
+                box_date.setDate(box_date.getDate()+1);
+                slider.noUiSlider.set(box_date.getTime());
+                texas_tooltip(box_date.getTime());
+                return date_changed(box_date.getTime());
             });
             
+            var cases = true;
+            console.log(cases);
+            $(document).on('click', '#sick', function() {
+                console.log('To sick...');
+                if (cases == false) {
+                    cases = true;
+                    $("#title").text("Texas Covid-19 Cases by County");
+                    console.log(false);
+                    map.removeLayer(tx_fatalities_layer);
+                    tx_cases_layer.addTo(map);
+                    box_date = new Date(document.getElementById('datebox').value);
+                    texas_tooltip(box_date.getTime());
+                    date_changed(box_date.getTime());
+                    
+                };
+            });
+            $(document).on('click', '#fatality', function() {
+                console.log('To fatality....');
+                if (cases == true) {
+                    cases = false;
+                    $("#title").text("Texas Covid-19 Fatalities by County");
+                    map.removeLayer(tx_cases_layer);
+                    tx_fatalities_layer.addTo(map);
+                    box_date = new Date(document.getElementById('datebox').value);
+                    texas_tooltip(box_date.getTime());
+                    date_changed(box_date.getTime());
+                }
+            })
 ////////////////////////////////////////////////// slider /////////////////////////////////////////////////
             
             var slider = document.getElementById('slider');
@@ -189,7 +295,7 @@
             noUiSlider.create(slider, {
                 start: today,
                 step: 24 * 60 * 60 * 1000,
-                pips: {mode: "values", values: [first_date.getTime(), today.getTime()], density: 24 * 60 * 60 * 1000},
+//                pips: {mode: "values", values: [first_date.getTime(), today.getTime()], density: 24 * 60 * 60 * 1000},
                 range: {'min': timestamp("2020"), 'max': timestamp("2021")},
             }).on("slide", function(e) {
                 return date_changed(parseInt(e[0]));
@@ -198,9 +304,14 @@
             slider.noUiSlider.on("change", function(e) {
                 if (e < first_date.getTime()) {
                     slider.noUiSlider.set(first_date.getTime());
+                    e = first_date.getTime();
+                    date_changed(e);
                 } else if (e > today.getTime()) {
                     slider.noUiSlider.set(today.getTime());
+                    e = today.getTime();
+                    date_changed(e);
                 };
+                texas_tooltip(e);
             });
             
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
