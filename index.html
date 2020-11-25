@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8" />
-    <title>A simple map</title>
+    <title>USA Covid-19 Map</title>
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
@@ -29,11 +29,39 @@
             margin: 10px;
             border-radius: 10px;
             box-shadow: 1px 1px 1px black;
-            min-height: 200px;
+            min-height: 170px;
             min-width: 400px;
         }
-        #remove {position: absolute; top: 10px; right: 10px;}
-
+        #remove {
+            position: absolute; 
+            top: 10px; 
+            right: 20px;
+            text-align: right;
+        }
+        
+        .info {
+            padding: 6px 8px; 
+            font: 14px/16px Arial, Helvetica, sans-serif; 
+            background: white; 
+            background: rgba(255,255,255,0.8); 
+            box-shadow: 0 0 15px rgba(0,0,0,0.2); 
+            border-radius: 5px; 
+        } 
+        .info h4 { 
+            margin: 0 0 5px; color: #777; 
+        }
+        .legend { 
+            text-align: left; 
+            line-height: 18px;
+            color: #555; 
+        } 
+        .legend i { 
+            width: 18px; 
+            height: 18px; 
+            float: left; 
+            margin-right: 8px; 
+            opacity: 0.7; 
+        }
 
     </style>
 </head>
@@ -41,13 +69,14 @@
 <body>
     <div id ="map"></div>
     <div id = "overlay">
-        <h3 id = "title"> Texas Covid-19 Cases by County </h3>
+        <h3 id = "title"> USA Covid Cases by States </h3>
         <div id = "button">
             <button id = 'preveous_day'> Day-1 </button>
             <button id = 'next_day'> Day+1 </button>
             <div id = 'remove'>
                 <p><button id = 'sick'> Cases </button></p>
                 <p><button id = 'fatality'> Fatalities</button></p>
+                <p><button id = 'backtostate'> Back to States </button></p>
             </div>
         </div>
         <div id = "date">
@@ -60,114 +89,204 @@
         $(document).ready(function() {
             
             $('#map').height(window.innerHeight);
-//            var us_boarder = "https://raw.githubusercontent.com/mp0530/OPS/ff2f3670d923b9a49763a4ba19c5fb23de617ff4/test.geojson"
             var map = L.map('map', {zoomControl: false})
-                .setView([30.266, -97.73], 5);
+                .setView([39.833333, -98.583333], 4);
+            map.dragging.disable();
+//            map.dragging.enable();
 
-            var basemap = L.tileLayer('http://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="http://cartodb.com/attributions">CartoDB</a>',
-                subdomains: 'abcd',
-                maxZoom: 19
-            }).addTo(map);
+//            var basemap = L.tileLayer('http://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png', {
+//                attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="http://cartodb.com/attributions">CartoDB</a>',
+//                subdomains: 'abcd',
+//                maxZoom: 19
+//            }).addTo(map);
 //            L.marker([30.467589, -97.680010]).bindPopup("My Home!").addTo(map);
+            L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
+                maxZoom: 18,
+                attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, ' +
+                  '<a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+                  'Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+                id: 'mapbox/light-v9',
+                tileSize: 512,
+                zoomOffset: -1
+            }).addTo(map);
 
             
-///////////////////////////////// Transferring CSV to Object!//////////////////////////////////////////
-            
-            console.log('Transffering CSV to Object...');
-            var tx_table;
-            var tx_table_fatality;
-            
-            ///////////////////////// Load sick data ///////////////////////////////
-            $.ajax({
+            // states geojson
+            var states_json = $.ajax({
                 type: "GET",
-                url: "texas_cases.csv",
-                dataType: "text",
-                success: function(data) {
-                    tx_table = tx_processData(data);
-                    geotolayer(tx_table);}
-                });
-            // Modify data
-            function tx_processData(data) {
-                let table = {}
-                let lines = data.split(/\r\n|\n/);
-                for (var i = 0; i < lines.length; i++) {
-                    var arr = lines[i].split(',');
-                    table[arr[0]] = arr.slice(1,);
-                };
-                return table
-            }; 
-            
-            // JSON call create Geojson Layer after data successfully modified
-            function geotolayer(table) {
-                console.log('Geojson to Layer...');
-                tx_counties = $.ajax({
-                    url: "https://raw.githubusercontent.com/TNRIS/tx.geojson/master/counties/tx_counties.geojson",
-                    dataType: "json",
-                    success: function(tx_counties) {procces_counties(tx_counties);},
-                    error: function(xhr) {alert("Bad")}
-                });
-            };
-            
-            // Create Geojson, append to map
-            var tx_cases_layer
-            function procces_counties(counties) {
-                tx_cases_layer = L.geoJSON(counties,{
-                    style: function(feature) {
-                        return texas_style(feature, Math.floor((today.getTime() - first_date.getTime())/(1000 * 3600 * 24)));
-                    },
-                    onEachFeature: function(feature, layer) {
-                        layer.bindTooltip(feature.properties.COUNTY + ": " + tx_table[feature.properties.COUNTY.slice(0,-7)][Math.floor((today.getTime() - first_date.getTime())/(1000 * 3600 * 24))])
-                    }
-                }).addTo(map);
-            };
-            $.ajax({
+                url: "Data/states.json",
+                dataType: "json",
+                success: function() {
+                    console.log("States_JSON Successfully Loaded ...")
+                },
+                error: function() {
+                    alert("Fail to load States_JSON")
+                }
+            });
+            // data from usa_fact
+            var data = $.ajax({
                 type: "GET",
-                url: "texas_fatality.csv",
-                dataType: "text",
+                url: "Data/usa_fact.json",
+                dataType: "json",
                 success: function(data) {
-                    console.log("fatality success");
-                    tx_table_fatality = tx_processData(data);
-                    $.ajax({
-                        url: "https://raw.githubusercontent.com/TNRIS/tx.geojson/master/counties/tx_counties.geojson",
-                        dataType: "json",
-                        success: function(tx_counties) {
-                            tx_fatalities_layer = L.geoJSON(tx_counties, {
-                                style: texas_style,
-                                onEachFeature: function(feature, layer) {
-                                    layer.bindTooltip(feature.properties.COUNTY + ": " + tx_table_fatality[(feature.properties.COUNTY.slice(0,-7)).toUpperCase()][Math.floor((today.getTime() - first_date.getTime())/(1000 * 3600 * 24))])
-                                }
-                            })
-                        }
-                    })
+                    console.log("Data Successfully Loaded...");
+                    console.log(data)
+                },
+                error: function() {
+                    alert("Fail to load Data")
                 }
             });
             
-
-/////////////////////////////////////////// Update Date ////////////////////////////////////////////////
-            
-            function date_changed(e) { 
-                // (e --> timestamp)
-                e = new Date(e);
-//                console.log(e);
-                $("#datebox").val((e.getMonth()+1).toString() + "/" + (e.getDate()).toString() + "/" + (e.getFullYear()).toString());
-                if (cases) {
-                    tx_cases_layer.setStyle(function(feature) {return texas_style(feature, Math.floor((e - first_date.getTime())/(1000 * 3600 * 24)))});
-                } else {
-                    tx_fatalities_layer.setStyle(function(feature) {return texas_style(feature, Math.floor((e - first_date.getTime())/(1000 * 3600 * 24)))});
+            var counties_json = $.ajax({
+                type: "GET",
+                url: "Data/counties.json",
+                dataType: "json",
+                success: function() {
+                    console.log("Counties_JSON Successfully Loaded ...")
+                },
+                error: function() {
+                    alert("Fail to load Counties_JSON")
                 }
+            });
+            
+            var today = new Date();
+            var first_date = new Date("01/22/2020");
+            var cur_date = new Date();
+            var len = Math.floor((today.getTime() - first_date.getTime())/86400000);
+            var state_id;
+            var states_layer
+            var counties_layer
+
+            $.when(states_json, data).done(function(states_json, data) {
+                var leaflet_id = false;
+                len = data["0"]["usa"]["1"]["case"].length - 1;
+                states_layer = L.geoJSON(states_json, {
+                    style: function(feature) {
+                        return state_style(feature);
+                    },
+                    onEachFeature: function(feature, layer) {
+                        layer.bindTooltip(feature.properties.NAME + ": " + data["0"]["usa"][""+feature.properties.STATE]["case"][len]);
+                        
+                        layer.on("mouseover", function() {
+                            highlight_counties(layer)
+                        });
+                        
+                        layer.on("mouseout", function() {
+                            reset_highlight(layer)
+                        });
+                        
+                        layer.on('click', function() {
+                            map.eachLayer(function(layer){
+                                if (leaflet_id && layer._leaflet_id == leaflet_id) {
+                                    map.removeLayer(layer)
+                                }
+                            });
+                            states_layer.setStyle({
+                                fillOpacity: 0
+                            });
+
+                            map.setView(feature.properties.Coord, 6);
+                            $("#title").text(feature.properties.NAME + " Covid Cases by Counties");
+                            state_id = feature.properties.STATE;
+                            counties_layer = L.geoJSON(counties_json["responseJSON"][""+state_id], {
+                                style: function(feature) {
+                                    return county_style(feature);
+                                },
+                                onEachFeature: function(feature, layer) {
+                                    let x = data["0"][""+state_id][""+feature.properties.COUNTY]
+                                    layer.bindTooltip(x[0] + ": " + x[1]["case"][len])
+                                    
+                                    layer.on("mouseover", function() {
+                                        highlight_counties(layer)
+                                    });
+                                    
+                                    layer.on("mouseout", function() {
+                                        reset_highlight(layer)
+                                    })
+                                }
+                            }).addTo(map);
+                            counties_layer.bringToFront();
+                            leaflet_id = counties_layer._leaflet_id;
+                        });
+                    }
+                });
+                states_layer.addTo(map);
+
+///////////////////////////////////////////////create slider after finished loading////////////////////////////////////////////
+            
+                var slider = document.getElementById('slider');
+                noUiSlider.create(slider, {
+                    start: len-1,
+                    step: 1,
+    //                pips: {mode: "values", values: [first_date.getTime(), today.getTime()], density: 24 * 60 * 60 * 1000},
+                    range: {'min': 0, 'max': len-1},
+                });
+
+                slider.noUiSlider.on("update", function(e) {
+                    len = parseInt(e[0]);
+                    console.log("len = " + len);
+                    update_style();
+                    update_tooltip();
+                    update_datebox();
+                });
+            }) // when done boundary
+            
+// Update Datebox
+            function addDays(date, days) {
+                var result = new Date(date);
+                result.setDate(result.getDate() + days);
+                return result;
             }
             
+            function update_datebox() {
+                cur_date = addDays(first_date, len);
+                
+                cur_yr = cur_date.getFullYear();
+                cur_mm = cur_date.getMonth()+1;
+                cur_dd = cur_date.getDate();
+                $("#datebox").val(cur_mm+"/"+cur_dd+"/"+cur_yr);
+            }
+            
+            function update_style() {
+                if (cases) {
+                    states_layer.setStyle(function(feature) {return state_style(feature)});
+                    if (counties_layer) {
+                        counties_layer.setStyle(function(feature) {return county_style(feature)});
+                    }
+                } else {
+                    tx_fatalities_layer.setStyle(function(feature) {return texas_style(feature, Math.floor((e - first_date.getTime())/(86400000)))});
+                }                
+            }
+            
+//////////////////////////////////// Update tooltip when date change //////////////////////////////////////
+            
+            function update_tooltip() {
+                if (cases) {
+                    states_layer.eachLayer(function(feature) {
+                        feature.setTooltipContent(feature.feature.properties.NAME + ": " + data["responseJSON"]["usa"][""+feature.feature.properties.STATE]["case"][len])
+                    });
+                    if (counties_layer) {
+                        counties_layer.eachLayer(function(feature) {
+                            let x = data["responseJSON"][""+state_id][""+feature.feature.properties.COUNTY];
+                            feature.setTooltipContent(x[0] + ": " + x[1]["case"][len]);
+                        })
+                    }
+                } else {
+                    tx_fatalities_layer.eachLayer(function(feature) {
+                        feature.setTooltipContent(feature.properties.NAME + ": " + data["usa"][""+feature.properties.STATE]["fatality"][len-1])
+                    })
+                }
+            };
+
 ////////////////////////////////// Update style when date change ///////////////////////////////////////
             
-            // Style when date modified
-            function texas_style(feature, index) {
+            function state_style(feature) {
                 if (cases) {
                     return {
-                        fillColor: cases_color(tx_table[feature.properties.COUNTY.slice(0,-7)][index]),
+                        fillColor: states_cases_color(data["responseJSON"]["usa"][""+feature.properties.STATE]["case"][len]),
                         weight: 2,
-                        opacity: 1,
-                        color: 'white',
+                        opacity: 0.7,
+                        color: 'black',
                         dashArray: '3',
                         fillOpacity: 0.7
                     };                    
@@ -183,8 +302,64 @@
                 }
             };
             
+            
+            function county_style(feature) {
+                if (cases) {
+                    return {
+                        fillColor: counties_cases_color(data["responseJSON"][state_id][""+feature.properties.COUNTY][1]["case"][len]),
+                        weight: 2,
+                        opacity: 1,
+                        color: 'black',
+                        dashArray: '3',
+                        fillOpacity: 1
+                    };                    
+                } else {
+                    return {
+                        fillColor: fatalities_color(tx_table_fatality[(feature.properties.COUNTY.slice(0,-7)).toUpperCase()][index]),
+                        weight: 2,
+                        opacity: 1,
+                        color: 'white',
+                        dashArray: '3',
+                        fillOpacity: 0.7
+                    }
+                }
+            };
+            
+            function highlight_states(layer) {
+                layer.setStyle({
+                    weight: 5,
+                    color: '#666',
+                    dashArray: '',
+                });
+                if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                  layer.bringToFront();
+                }
+            }
+            
+            function highlight_counties(layer) {
+                layer.setStyle({
+                    weight: 5,
+                    color: '#5df0e6',
+                    dashArray: '',
+                    opacity: 0.9
+                });
+                if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                  layer.bringToFront();
+                }
+
+            }
+            
+            function reset_highlight(layer) {
+                layer.setStyle({
+                    weight: 2,
+                    opacity: 1,
+                    color: 'black',
+                    dashArray: '3',
+                })
+            }
+            
             // Cases color
-            function cases_color(n) {
+            function counties_cases_color(n) {
                 return  n != parseInt(n, 10) ? "#FDFEFE"  : 
                         n < 10 ? "#f7fcf5" :
                         n < 20 ? "#e5f5e0" :
@@ -197,6 +372,20 @@
                         "#00441b"
             };
             
+            function states_cases_color(n) {
+                return  n != parseInt(n, 10) ? "#FDFEFE"  : 
+                        n < 10 ? "#f7fcf5" :
+                        n < 100 ? "#e5f5e0" :
+                        n < 1000 ? "#c7e9c0" :
+                        n < 5000 ? "#a1d99b":
+                        n < 10000 ? "#74c476":
+                        n < 50000 ? "#41ab5d":
+                        n < 100000 ? "#238b45":
+                        n < 500000 ? "#006d2c":
+                        n < 1000000 ? "#00441b":
+                        "#00240e"
+            };
+
             // Fatalities color
             function fatalities_color(n) {
                 return  n != parseInt(n, 10) ? "#FDFEFE":
@@ -210,62 +399,44 @@
                         n < 1000?"#99000d":
                         "#67000d"
             }
-//////////////////////////////////// Update tooltip when date change //////////////////////////////////////
-            
-            function texas_tooltip(e) {
-                if (cases) {
-                    tx_cases_layer.eachLayer(function(feature) {
-                        feature.setTooltipContent(feature.feature.properties.COUNTY + ": " + tx_table[feature.feature.properties.COUNTY.slice(0,-7)][Math.floor((e - first_date)/(1000 * 3600 * 24))])
-                    })    
-                } else {
-                    tx_fatalities_layer.eachLayer(function(feature) {
-                        feature.setTooltipContent(feature.feature.properties.COUNTY + ": " + tx_table_fatality[(feature.feature.properties.COUNTY.slice(0,-7)).toUpperCase()][Math.floor((e - first_date)/(1000 * 3600 * 24))])
-                    })
-                }
-            };
             
 /////////////////////////////////////////////// date-picker ///////////////////////////////////////////////
             
-            var today = new Date("10/15/2020");
-            var first_date = new Date("03/04/2020");
             document.getElementById('datebox').value = (today.getMonth()+1).toString() + "/" + today.getDate().toString() + "/" + today.getFullYear().toString();
 
             $('#datebox').datepicker().on("change", function(t) {
                 t = new Date(t.target.value);
                 console.log(t);
-                slider.noUiSlider.set(t.getTime());
-                if (cases) {
-                    tx_cases_layer.setStyle(function(feature) {return texas_style(feature, Math.floor((t.getTime() - first_date)/(1000 * 3600 * 24)))});
-                } else {
-                    tx_fatalities_layer.setStyle(function(feature) {return texas_style(feature, Math.floor((t.getTime() - first_date)/(1000 * 3600 * 24)))})
-                };
-                texas_tooltip(t.getTime());
+                len = Math.round((t.getTime() - first_date.getTime())/86400000);
+                slider.noUiSlider.set(len);
             });
 
 ////////////////////////////////////////////////// button /////////////////////////////////////////////////
             
             $(document).on('click', '#preveous_day', function() {
-                box_date = new Date(document.getElementById('datebox').value);
-                box_date.setDate(box_date.getDate()-1);
-                slider.noUiSlider.set(box_date.getTime());
-                texas_tooltip(box_date.getTime());
-                return date_changed(box_date.getTime());
+                len -= 1;
+                slider.noUiSlider.set(len);
             });
             $(document).on('click', '#next_day', function() {
-                box_date = new Date(document.getElementById('datebox').value);
-                box_date.setDate(box_date.getDate()+1);
-                slider.noUiSlider.set(box_date.getTime());
-                texas_tooltip(box_date.getTime());
-                return date_changed(box_date.getTime());
+                len += 1;
+                slider.noUiSlider.set(len);
             });
             
+            $(document).on('click', '#backtostate', function() {
+                map.setView([39.833333, -98.583333], 4);
+                map.removeLayer(counties_layer);
+                states_layer.setStyle({fillOpacity: 0.7});
+                $("#title").text("USA Covid Cases by States");
+            })
+            
+////////////////////////////////////////////////// toggle cases vs fatalities /////////////////////////////////////////////////
             var cases = true;
             console.log(cases);
             $(document).on('click', '#sick', function() {
                 console.log('To sick...');
                 if (cases == false) {
                     cases = true;
-                    $("#title").text("Texas Covid-19 Cases by County");
+                    $("#title").text("USA Covid Cases by States");
                     console.log(false);
                     map.removeLayer(tx_fatalities_layer);
                     tx_cases_layer.addTo(map);
@@ -287,32 +458,42 @@
                     date_changed(box_date.getTime());
                 }
             })
-////////////////////////////////////////////////// slider /////////////////////////////////////////////////
             
-            var slider = document.getElementById('slider');
-            function timestamp(str) {return new Date(str).getTime();}
+            function getColor(d) {
+                return d > 1000 ? '#800026' :
+                    d > 500  ? '#BD0026' :
+                    d > 200  ? '#E31A1C' :
+                    d > 100  ? '#FC4E2A' :
+                    d > 50   ? '#FD8D3C' :
+                    d > 20   ? '#FEB24C' :
+                    d > 10   ? '#FED976' :
+                          '#FFEDA0';
+            };
             
-            noUiSlider.create(slider, {
-                start: today,
-                step: 24 * 60 * 60 * 1000,
-//                pips: {mode: "values", values: [first_date.getTime(), today.getTime()], density: 24 * 60 * 60 * 1000},
-                range: {'min': timestamp("2020"), 'max': timestamp("2021")},
-            }).on("slide", function(e) {
-                return date_changed(parseInt(e[0]));
+            var legend = L.control({position: 'bottomright'});
 
-            });
-            slider.noUiSlider.on("change", function(e) {
-                if (e < first_date.getTime()) {
-                    slider.noUiSlider.set(first_date.getTime());
-                    e = first_date.getTime();
-                    date_changed(e);
-                } else if (e > today.getTime()) {
-                    slider.noUiSlider.set(today.getTime());
-                    e = today.getTime();
-                    date_changed(e);
+            legend.onAdd = function(map) {
+
+            var div = L.DomUtil.create('div', 'info legend'),
+                grades = [0, 10, 20, 50, 100, 200, 500, 1000],
+                labels = [],
+                from, to;
+
+            for (var i = 0; i < grades.length; i++) {
+                from = grades[i];
+                to = grades[i + 1];
+
+                labels.push(
+                    '<i style="background:' + getColor(from + 1) + '"></i> ' +
+                    from + (to ? '&ndash;' + to : '+'));
                 };
-                texas_tooltip(e);
-            });
+                console.log(labels);
+                div.innerHTML = labels.join('<br>');
+                console.log(div);
+                return div;
+            };
+            console.log(1);
+            legend.addTo(map);
             
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
             
