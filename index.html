@@ -2,6 +2,7 @@
 <html>
 
 <head>
+    
     <meta charset="utf-8" />
     <title>USA Covid-19 Map</title>
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
@@ -15,10 +16,16 @@
     <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
 
     <style>
-        body {margin: 0; padding: 0;}
-/*        #button {position: absolute; top: 0; left: 0; margin: 140px 0px 0px 130px; z-index: 1000}*/
-        #map {width: 100%;}
-/*        #date {position: absolute; top: 0; left: 0; margin: 240px 0px 0px 130px; z-index: 1000}*/
+        
+        body {
+            margin: 0; 
+            padding: 0;
+        }
+        
+        #map {
+            width: 100%;
+        }
+        
         #overlay {
             position: absolute;
             z-index: 1000;
@@ -32,6 +39,7 @@
             min-height: 170px;
             min-width: 400px;
         }
+        
         #remove {
             position: absolute; 
             top: 10px; 
@@ -47,14 +55,18 @@
             box-shadow: 0 0 15px rgba(0,0,0,0.2); 
             border-radius: 5px; 
         } 
+        
         .info h4 { 
-            margin: 0 0 5px; color: #777; 
+            margin: 0 0 5px; 
+            color: #777; 
         }
+        
         .legend { 
             text-align: left; 
             line-height: 18px;
             color: #555; 
-        } 
+        }
+        
         .legend i { 
             width: 18px; 
             height: 18px; 
@@ -62,11 +74,16 @@
             margin-right: 8px; 
             opacity: 0.7; 
         }
+        
+        p {
+            margin: 7px;
+        }
 
     </style>
 </head>
 
 <body>
+    
     <div id ="map"></div>
     <div id = "overlay">
         <h3 id = "title"> USA Covid Cases by States </h3>
@@ -77,29 +94,23 @@
                 <p><button id = 'sick'> Cases </button></p>
                 <p><button id = 'fatality'> Fatalities</button></p>
                 <p><button id = 'backtostate'> Back to States </button></p>
+                <p><button id = 'showeverycounties'> Show Every Counties</button></p>
             </div>
         </div>
         <div id = "date">
-            <p>Date: <input type="text" id="datebox"></p>
+            <h4>Date: <input type="text" id="datebox"></h4>
         </div>
         <div id = "slider"></div>
     </div>
     
     <script>
+        
         $(document).ready(function() {
             
             $('#map').height(window.innerHeight);
             var map = L.map('map', {zoomControl: false})
                 .setView([39.833333, -98.583333], 4);
-//            map.dragging.disable();
-//            map.dragging.enable();
 
-//            var basemap = L.tileLayer('http://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png', {
-//                attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="http://cartodb.com/attributions">CartoDB</a>',
-//                subdomains: 'abcd',
-//                maxZoom: 19
-//            }).addTo(map);
-//            L.marker([30.467589, -97.680010]).bindPopup("My Home!").addTo(map);
             L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
                 maxZoom: 18,
                 attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, ' +
@@ -123,6 +134,7 @@
                     alert("Fail to load States_JSON")
                 }
             });
+            
             // data from usa_fact
             var data = $.ajax({
                 type: "GET",
@@ -130,7 +142,6 @@
                 dataType: "json",
                 success: function(data) {
                     console.log("Data Successfully Loaded...");
-                    console.log(data)
                 },
                 error: function() {
                     alert("Fail to load Data")
@@ -143,7 +154,6 @@
                 dataType: "json",
                 success: function(e) {
                     console.log("Counties_JSON Successfully Loaded ...");
-                    console.log(e)
                 },
                 error: function() {
                     alert("Fail to load Counties_JSON")
@@ -153,30 +163,28 @@
             var today = new Date();
             var first_date = new Date("01/22/2020");
             var cur_date = new Date();
-            var len = Math.floor((today.getTime() - first_date.getTime())/86400000);
+            var len;
             var state_id;
             var states_layer;
-            var counties_layer;
-            var isstatelayer;
-            var cases = true;
+            var counties_layer = L.geoJSON();
             var state_name = "USA";
+            var on_layer;
+            var on_style;
             
             $.when(states_json, data).done(function(states_json, data) {
                 
-                var leaflet_id = false;
-                isstatelayer = true;
+                on_layer = "state";
+                on_style = "case";
                 
                 len = data["0"]["usa"]["1"]["case"].length - 1;
                 update_legend();
                 states_layer = L.geoJSON(states_json, {
-                    style: function(feature) {
-                        return state_style(feature);
-                    },
+                    style: state_style,
                     onEachFeature: function(feature, layer) {
                         layer.bindTooltip(feature.properties.NAME + ": " + data["0"]["usa"][""+feature.properties.STATE]["case"][len]);
                         
                         layer.on("mouseover", function() {
-                            highlight_counties(layer)
+                            highlight(layer)
                         });
                         
                         layer.on("mouseout", function() {
@@ -184,40 +192,41 @@
                         });
                         
                         layer.on('click', function() {
-                            isstatelayer = false;
-                            update_legend();
+                            if (on_layer != "county") {
+                                on_layer = "county";
+                                update_legend();
+                                weight = 1.5;
+                                all_counties.clearLayers();                                
+                                states_layer.setStyle({
+                                    fillOpacity: 0
+                                });
+                            } else {
+                                counties_layer.clearLayers();
+                            }
+                            
                             state_id = feature.properties.STATE;
                             state_name = feature.properties.NAME;
-                            map.eachLayer(function(layer){
-                                if (leaflet_id && layer._leaflet_id == leaflet_id) {
-                                    map.removeLayer(layer)
-                                }
-                            });
-                            states_layer.setStyle({
-                                fillOpacity: 0
-                            });
+                            
 
-                            map.setView(feature.properties.Coord, 6);
-                            if (cases) {
+                            map.fitBounds(layer.getBounds());
+                            if (on_style == "case") {
                                 $("#title").text(state_name + " Covid Cases by Counties");
-                            } else {
+                            } else if (on_style == "fatality") {
                                 $("#title").text(state_name + " Covid Fatalities by Counties");
                             }
                             counties_layer = L.geoJSON(counties_json["responseJSON"][""+state_id], {
-                                style: function(feature) {
-                                    return county_style(feature);
-                                },
+                                style: county_style,
                                 onEachFeature: function(feature, layer) {
                                     let x = data["0"][""+state_id][""+feature.properties.COUNTY];
                                     
-                                    if (cases) {
+                                    if (on_style == "case") {
                                         layer.bindTooltip(x[0] + ": " + x[1]["case"][len])
-                                    } else {
+                                    } else if (on_style == "fatality") {
                                         layer.bindTooltip(x[0] + ":" + x[1]["death"][len])
                                     };
                                     
                                     layer.on("mouseover", function() {
-                                        highlight_counties(layer)
+                                        highlight(layer)
                                     });
                                     
                                     layer.on("mouseout", function() {
@@ -226,7 +235,6 @@
                                 }
                             }).addTo(map);
                             counties_layer.bringToFront();
-                            leaflet_id = counties_layer._leaflet_id;
                         });
                     }
                 });
@@ -238,13 +246,11 @@
                 noUiSlider.create(slider, {
                     start: len-1,
                     step: 1,
-    //                pips: {mode: "values", values: [first_date.getTime(), today.getTime()], density: 24 * 60 * 60 * 1000},
                     range: {'min': 0, 'max': len-1},
                 });
 
                 slider.noUiSlider.on("update", function(e) {
                     len = parseInt(e[0]);
-                    console.log("len = " + len);
                     update_style();
                     update_tooltip();
                     update_datebox();
@@ -260,7 +266,6 @@
             
             function update_datebox() {
                 cur_date = addDays(first_date, len);
-                
                 cur_yr = cur_date.getFullYear();
                 cur_mm = cur_date.getMonth()+1;
                 cur_dd = cur_date.getDate();
@@ -268,58 +273,94 @@
             }
             
             function update_style() {
-                if (cases) {
-                    if (isstatelayer) {
+                if (on_style == "case") {
+                    if (on_layer == "state") {
                         states_layer.setStyle(function(feature) {
                             return {
                                 fillColor: states_cases_color(data["responseJSON"]["usa"][""+feature.properties.STATE]["case"][len])
                             }
                         })
-                    } else {
+                    } else if (on_layer == "county") {
                         counties_layer.setStyle(function(feature) {
                             return {
                                 fillColor: counties_cases_color(data["responseJSON"][state_id][""+feature.properties.COUNTY][1]["case"][len])
                             }
                         });
+                    } else if (on_layer == "counties") {
+                        console.log("updating...");
+                        all_counties.eachLayer(function(layer) {
+                            state_id = layer.state_id
+                            layer.setStyle(function(feature) {
+                                return {
+                                    fillColor: counties_cases_color(data["responseJSON"][state_id][""+feature.properties.COUNTY][1]["case"][len])
+                                }
+                            })
+                        })
                     }
-                } else {
-                    if (isstatelayer) {
+                } else if (on_style == "fatality") {
+                    if (on_layer == "state") {
                         states_layer.setStyle(function(feature) {
                             return {
                                 fillColor: states_fatalities_color(data["responseJSON"]["usa"][""+feature.properties.STATE]["death"][len])
                             }
                         })
-                    } else {
+                    } else if (on_layer == "county") {
                         counties_layer.setStyle(function(feature) {
                             return {
                                 fillColor: states_fatalities_color(data["responseJSON"][state_id][""+feature.properties.COUNTY][1]["death"][len])
                             }
                         })
+                    } else if (on_layer == "counties") {
+                        all_counties.eachLayer(function(layer) {
+                            state_id = layer.state_id
+                            layer.setStyle(function(feature) {
+                                return {
+                                    fillColor: states_fatalities_color(data["responseJSON"][state_id][""+feature.properties.COUNTY][1]["death"][len])
+                                }
+                            })
+                        })
                     }
                 }               
             }
             
-//////////////////////////////////// Update tooltip when date change //////////////////////////////////////
+//////////////////////////////////// Update tooltip  //////////////////////////////////////
             
             function update_tooltip() {
-                if (cases) { 
+                if (on_style == "case") { 
                     states_layer.eachLayer(function(feature) {
                         feature.setTooltipContent(feature.feature.properties.NAME + ": " + data["responseJSON"]["usa"][""+feature.feature.properties.STATE]["case"][len])
                     });
-                    if (counties_layer) {
+                    if (on_layer == "county") {
                         counties_layer.eachLayer(function(feature) {
-                            let x = data["responseJSON"][""+state_id][""+feature.feature.properties.COUNTY];
-                            feature.setTooltipContent(x[0] + ": " + x[1]["case"][len]);
+                            let x = data["responseJSON"][state_id][""+feature.feature.properties.COUNTY];
+                            feature.setTooltipContent(x[0] + ": " + x[1]["case"][len])
+                        })
+                    } else if (on_layer == "counties") {
+                        all_counties.eachLayer(function(layer) {
+                            state_id = layer.state_id
+                            layer.eachLayer(function(feature) {
+                                let x = data["responseJSON"][state_id][""+feature.feature.properties.COUNTY];
+                                feature.setTooltipContent(x[0] + ": " + x[1]["case"][len])
+                            })
                         })
                     }
+
                 } else {
                     states_layer.eachLayer(function(feature) {
                         feature.setTooltipContent(feature.feature.properties.NAME + ": " + data["responseJSON"]["usa"][""+feature.feature.properties.STATE]["death"][len])
                     });
-                    if (counties_layer) {
+                    if (on_layer == "county") {
                         counties_layer.eachLayer(function(feature) {
-                            let x = data["responseJSON"][""+state_id][""+feature.feature.properties.COUNTY];
+                            let x = data["responseJSON"][state_id][""+feature.feature.properties.COUNTY];
                             feature.setTooltipContent(x[0] + ": " + x[1]["death"][len]);
+                        })
+                    } else if (on_layer == "counties") {
+                        all_counties.eachLayer(function(layer) {
+                            state_id = layer.state_id
+                            layer.eachLayer(function(feature) {
+                                let x = data["responseJSON"][state_id][""+feature.feature.properties.COUNTY];
+                                feature.setTooltipContent(x[0] + ": " + x[1]["death"][len])
+                            })
                         })
                     }
                 }
@@ -327,20 +368,22 @@
 
 ////////////////////////////////// Set style when date change ///////////////////////////////////////
             
+            var weight
             function state_style(feature) {
-                if (cases) {
+                weight = 2;
+                if (on_style == "case") {
                     return {
                         fillColor: states_cases_color(data["responseJSON"]["usa"][""+feature.properties.STATE]["case"][len]),
-                        weight: 2,
+                        weight: weight,
                         opacity: 0.7,
                         color: 'black',
                         dashArray: '3',
                         fillOpacity: 0.7
                     };                    
-                } else {
+                } else if (on_style == "fatality") {
                     return {
                         fillColor: states_fatalities_color(data["responseJSON"]["usa"][""+feature.properties.STATE]["death"][len]),
-                        weight: 2,
+                        weight: weight,
                         opacity: 1,
                         color: 'black',
                         dashArray: '3',
@@ -349,21 +392,20 @@
                 }
             };
             
-            
             function county_style(feature) {
-                if (cases) {
+                if (on_style == "case") {
                     return {
                         fillColor: counties_cases_color(data["responseJSON"][state_id][""+feature.properties.COUNTY][1]["case"][len]),
-                        weight: 2,
+                        weight: weight,
                         opacity: 1,
                         color: 'black',
                         dashArray: '3',
                         fillOpacity: 0.7
                     };                    
-                } else {
+                } else if (on_style == "fatality") {
                     return {
                         fillColor: states_fatalities_color(data["responseJSON"][state_id][""+feature.properties.COUNTY][1]["death"][len]),
-                        weight: 2,
+                        weight: weight,
                         opacity: 1,
                         color: 'black',
                         dashArray: '3',
@@ -372,18 +414,7 @@
                 }
             };
             
-            function highlight_states(layer) {
-                layer.setStyle({
-                    weight: 5,
-                    color: '#666',
-                    dashArray: '',
-                });
-                if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
-                  layer.bringToFront();
-                }
-            }
-            
-            function highlight_counties(layer) {
+            function highlight(layer) {
                 layer.setStyle({
                     weight: 5,
                     color: '#5df0e6',
@@ -391,13 +422,16 @@
                     opacity: 0.9
                 });
                 if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
-                  layer.bringToFront();
+                    layer.bringToFront();
+                }
+                if (on_layer != "state") {
+                    states_layer.bringToBack();
                 }
             }
             
             function reset_highlight(layer) {
                 layer.setStyle({
-                    weight: 2,
+                    weight: weight,
                     opacity: 1,
                     color: 'black',
                     dashArray: '3',
@@ -473,23 +507,72 @@
             
             $(document).on('click', '#backtostate', function() {
                 map.setView([39.833333, -98.583333], 4);
-                map.removeLayer(counties_layer);
-                isstatelayer = true;
-                update_legend();
-                states_layer.setStyle(state_style);
-                $("#title").text("USA Covid Cases by States");
+                if (on_layer != "state") {
+                    on_layer = "state";
+                    counties_layer.clearLayers();
+                    all_counties.clearLayers();
+                    weight = 2;
+                    update_legend();
+                    states_layer.setStyle(state_style);
+                    $("#title").text("USA Covid Cases by States");
+                    
+                }
             })
+            
+            var all_counties = L.featureGroup();
+            $(document).on('click', '#showeverycounties', function() {
+                map.setView([39.833333, -98.583333], 4);
+                if (on_layer != "counties") {
+                    on_layer = "counties";
+                    weight = 0;
+                    counties_layer.clearLayers();
+                    states_layer.setStyle({
+                        fillOpacity: 0
+                    });
+                    all_counties.bringToFront();
+                    for (let i in data["responseJSON"]) {
+                        state_id = i;
+                        let r = L.geoJSON(counties_json["responseJSON"][i], {
+                            style: county_style,
+                            onEachFeature: function(feature, layer) {
+
+                                let x = data["responseJSON"][i][""+feature.properties.COUNTY];
+
+                                if (on_style == "case") {
+                                    layer.bindTooltip(x[0] + ": " + x[1]["case"][len])
+                                } else if (on_style == "fatality") {
+                                    layer.bindTooltip(x[0] + ":" + x[1]["death"][len])
+                                }
+
+                                layer.on("mouseover", function() {
+                                    highlight(layer)
+                                });
+
+                                layer.on("mouseout", function() {
+                                    reset_highlight(layer)
+                                })
+                            },
+                            smoothFactor: 0.5
+                        });
+                        r["state_id"] = state_id;
+                        r.addTo(all_counties);
+                    };
+                    all_counties.addTo(map);
+                }
+            });
             
 ////////////////////////////////////////////////// toggle cases vs fatalities /////////////////////////////////////////////////
             
             $(document).on('click', '#sick', function() {
                 console.log('To sick...');
-                if (cases == false) {
-                    cases = true;
-                    if (isstatelayer) {
+                if (on_style != "case") {
+                    on_style = "case";
+                    if (on_layer == "state") {
                         $("#title").text("USA Covid Cases by States")
-                    } else {
+                    } else if (on_layer == "county") {
                         $("#title").text(state_name + " Covid Cases by Counties")
+                    } else if (on_layer == "counties") {
+                        $("#title").text("USA Covid Cases by Counties")
                     }
                     update_tooltip();
                     update_style();
@@ -499,13 +582,16 @@
             
             $(document).on('click', '#fatality', function() {
                 console.log('To fatality....');
-                if (cases == true) {
-                    cases = false;
-                    if (isstatelayer) {
+                if (on_style != "fatality") {
+                    on_style = "fatality";
+                    if (on_layer == "state") {
                         $("#title").text("USA Covid Fatalities by States");
-                    } else {
+                    } else if (on_layer == "county") {
                         $("#title").text(state_name + " Covid Fatalities by Counties");
+                    } else if (on_layer == "counties") {
+                        $("#title").text("USA Covid Fatalities by Counties");
                     }
+                    console.log(on_layer);
                     update_tooltip();
                     update_style();
                     update_legend();
@@ -536,26 +622,27 @@
             var color_grades
             var color_list
             var legend
+            
             function update_legend() {
                 $('.info.legend.leaflet-control').remove();
-                if (cases) {
-                    if (isstatelayer) {
+                if (on_style == "case") {
+                    if (on_layer == "state") {
                         color_grades = grades.cases.states[0];
                         color_list = grades.cases.states[1]
-                    } else {
+                    } else if (on_layer == "county" || on_layer == "counties") {
                         color_grades = grades.cases.counties[0];
                         color_list = grades.cases.counties[1]
                     }
-                } else {
-                    if (isstatelayer) {
+                } else if (on_style == "fatality") {
+                    if (on_style == "state") {
                         color_grades = grades.fatalities.states[0];
                         color_list = grades.fatalities.counties[1]
-                    } else {
+                    } else if (on_layer == "county" || on_layer == "counties") {
                         color_grades = grades.fatalities.states[0];
                         color_list = grades.fatalities.counties[1]
                     }
                 }
-                
+
                 var legend = L.control({position: 'bottomright'});
 
                 legend.onAdd = function(map) {
@@ -571,9 +658,9 @@
                         );
                     };
                     
-                    if (cases) {
+                    if (on_style == "case") {
                         labels.push('<i style="background: #00240e"></i> ' + color_grades[color_grades.length-1] + "+");
-                    } else {
+                    } else if (on_style == "fatality") {
                         labels.push('<i style="background: #67000d"></i> ' + color_grades[color_grades.length-1] + "+");
                     }
                     
