@@ -634,11 +634,11 @@
                         color_list = grades.cases.counties[1]
                     }
                 } else if (on_style == "fatality") {
-                    if (on_style == "state") {
+                    if (on_layer == "state") {
                         color_grades = grades.fatalities.states[0];
-                        color_list = grades.fatalities.counties[1]
+                        color_list = grades.fatalities.states[1]
                     } else if (on_layer == "county" || on_layer == "counties") {
-                        color_grades = grades.fatalities.states[0];
+                        color_grades = grades.fatalities.counties[0];
                         color_list = grades.fatalities.counties[1]
                     }
                 }
